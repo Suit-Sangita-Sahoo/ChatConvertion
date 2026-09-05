@@ -1,0 +1,666 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1.0">
+
+    <title>Real-Time Chat</title>
+
+    <!-- CSS -->
+    <link rel="stylesheet"
+          href="/css/Style.css?v=1002">
+
+</head>
+
+<body>
+
+<div class="app">
+
+    <!-- =====================================================
+         SIDEBAR
+    ====================================================== -->
+
+    <aside class="sidebar">
+
+        <!-- Header -->
+
+        <div class="sidebar-header">
+
+            <h1>ChatApp</h1>
+
+            <p>
+                Real-Time Messaging
+            </p>
+
+        </div>
+
+
+        <!-- =================================================
+             CURRENT LOGGED-IN USER
+        ================================================== -->
+
+        <div class="current-user">
+
+            <div class="current-user-avatar"
+                 id="currentUserAvatar">
+
+                U
+
+            </div>
+
+
+            <div class="current-user-info">
+
+                <h3 id="currentUserName">
+                    Guest
+                </h3>
+
+                <span id="currentUserEmail">
+                    Please login
+                </span>
+
+            </div>
+
+        </div>
+
+
+        <!-- =================================================
+             LOGIN / LOGOUT
+        ================================================== -->
+
+        <div class="auth-buttons">
+
+            <button
+                type="button"
+                id="loginButton"
+                class="login-button"
+                onclick="goToLogin()">
+
+                🔐 Login
+
+            </button>
+
+
+            <button
+                type="button"
+                id="logoutButton"
+                class="logout-button"
+                onclick="logout()">
+
+                🚪 Logout
+
+            </button>
+
+        </div>
+
+
+        <!-- =================================================
+             SEARCH USERS
+        ================================================== -->
+
+        <div class="search-box">
+
+            <input
+                type="text"
+                id="searchUser"
+                placeholder="Search users..."
+                autocomplete="off">
+
+        </div>
+
+
+        <!-- =================================================
+             USERS LIST
+        ================================================== -->
+
+        <div id="usersList"
+             class="users-list">
+
+        </div>
+
+    </aside>
+
+
+
+    <!-- =====================================================
+         MAIN CHAT AREA
+    ====================================================== -->
+
+    <main class="chat-area">
+
+
+        <!-- =================================================
+             CHAT HEADER
+        ================================================== -->
+
+        <header class="chat-header">
+
+            <div>
+
+                <h2 id="chatUserName">
+                    Select a user
+                </h2>
+
+                <span id="chatStatus">
+                    Choose someone to start chatting
+                </span>
+
+            </div>
+
+        </header>
+
+
+
+        <!-- =================================================
+             TWO CHAT BOXES
+        ================================================== -->
+
+        <div class="dual-chat-container">
+
+
+            <!-- =================================================
+                 BOX 1 - CURRENT LOGGED-IN USER
+            ================================================== -->
+
+            <section class="chat-box"
+                     id="currentUserChatBox">
+
+
+                <!-- Chat box header -->
+
+                <div class="chat-box-header">
+
+                    <div>
+
+                        <h3 id="sangitaTitle">
+                            👤 Current User
+                        </h3>
+
+                    </div>
+
+
+                    <span id="sangitaUserId">
+                        ID: -
+                    </span>
+
+                </div>
+
+
+
+                <!-- =================================================
+                     CURRENT USER MESSAGES
+                ================================================== -->
+
+                <div id="sangitaMessages"
+                     class="messages">
+
+                    <div class="empty-chat">
+
+                        <p>
+                            Login and select a user to start chatting.
+                        </p>
+
+                    </div>
+
+                </div>
+
+                <!-- =================================================
+                     CURRENT USER MESSAGE FORM
+                ================================================== -->
+
+                <form id="sangitaForm"
+                      class="message-form">
+
+
+                    <!-- Text -->
+
+                    <input
+                        type="text"
+                        id="sangitaInput"
+                        placeholder="Type a message..."
+                        autocomplete="off">
+
+
+                    <!-- Image -->
+
+                    <label class="image-upload-button"
+                           for="sangitaImage">
+
+                        📷 Image
+
+                    </label>
+
+
+                    <input
+                        type="file"
+                        id="sangitaImage"
+                        accept="image/jpeg,image/png,image/webp"
+                        hidden>
+
+
+                    <!-- Send -->
+
+                    <button
+                        type="submit">
+
+                        Send
+
+                    </button>
+
+                </form>
+
+
+                <!-- Selected image name -->
+
+                <div id="sangitaImagePreview"
+                     class="image-preview">
+
+                </div>
+
+            </section>
+
+
+
+            <!-- =================================================
+                 BOX 2 - SELECTED USER
+            ================================================== -->
+
+            <section class="chat-box"
+                     id="selectedUserChatBox">
+
+
+                <!-- Chat header -->
+
+                <div class="chat-box-header">
+
+                    <div>
+
+                        <h3 id="selectedUserTitle">
+                            👤 Select User
+                        </h3>
+
+                    </div>
+
+
+                    <span id="selectedUserId">
+                        ID: -
+                    </span>
+
+                </div>
+
+
+
+                <!-- =================================================
+                     SELECTED USER MESSAGES
+                ================================================== -->
+
+                <div id="selectedMessages"
+                     class="messages">
+
+                    <div class="empty-chat">
+
+                        <p>
+                            Select a user to start chatting.
+                        </p>
+
+                    </div>
+
+                </div>
+
+
+
+                <!-- =================================================
+                     SELECTED USER MESSAGE FORM
+                ================================================== -->
+
+                <form id="selectedUserForm"
+                      class="message-form">
+
+
+                    <!-- Text -->
+
+                    <input
+                        type="text"
+                        id="selectedUserInput"
+                        placeholder="Type a message..."
+                        autocomplete="off">
+
+
+                    <!-- Image -->
+
+                    <label class="image-upload-button"
+                           for="selectedUserImage">
+
+                        📷 Image
+
+                    </label>
+
+
+                    <input
+                        type="file"
+                        id="selectedUserImage"
+                        accept="image/jpeg,image/png,image/webp"
+                        hidden>
+
+
+                    <!-- Send -->
+
+                    <button
+                        type="submit">
+
+                        Send
+
+                    </button>
+
+                </form>
+
+
+                <!-- Selected image preview -->
+
+                <div id="selectedImagePreview"
+                     class="image-preview">
+
+                </div>
+
+            </section>
+
+        </div>
+
+
+
+        <!-- =================================================
+             TYPING INDICATOR
+        ================================================== -->
+
+        <div id="typing"
+             class="typing">
+
+        </div>
+
+
+    </main>
+
+</div>
+
+
+
+<!-- =========================================================
+     SIGNALR
+========================================================== -->
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/10.0.0/signalr.min.js"></script>
+
+
+
+<!-- =========================================================
+     IMAGE PREVIEW SCRIPT
+========================================================== -->
+
+<script>
+
+document.addEventListener(
+    "DOMContentLoaded",
+    function () {
+
+
+        // =================================================
+        // CURRENT USER IMAGE PREVIEW
+        // =================================================
+
+        const sangitaImage =
+            document.getElementById(
+                "sangitaImage"
+            );
+
+        const sangitaPreview =
+            document.getElementById(
+                "sangitaImagePreview"
+            );
+
+
+        if (sangitaImage) {
+
+            sangitaImage.addEventListener(
+                "change",
+                function () {
+
+                    if (
+                        !sangitaPreview ||
+                        !this.files ||
+                        this.files.length === 0
+                    ) {
+
+                        if (sangitaPreview) {
+
+                            sangitaPreview.innerHTML =
+                                "";
+
+                        }
+
+                        return;
+                    }
+
+
+                    const file =
+                        this.files[0];
+
+
+                    // Check file size
+
+                    if (
+                        file.size >
+                        5 * 1024 * 1024
+                    ) {
+
+                        alert(
+                            "Image size must be less than 5 MB."
+                        );
+
+                        this.value = "";
+
+                        sangitaPreview.innerHTML =
+                            "";
+
+                        return;
+                    }
+
+
+                    // Check image type
+
+                    const allowedTypes = [
+                        "image/jpeg",
+                        "image/png",
+                        "image/webp"
+                    ];
+
+
+                    if (
+                        !allowedTypes.includes(
+                            file.type
+                        )
+                    ) {
+
+                        alert(
+                            "Only JPG, PNG and WEBP images are allowed."
+                        );
+
+                        this.value = "";
+
+                        sangitaPreview.innerHTML =
+                            "";
+
+                        return;
+                    }
+
+
+                    // Show filename
+
+                    sangitaPreview.innerHTML =
+                        `
+                        <div class="selected-image-info">
+
+                            📷
+                            <span>
+                                ${escapeHtml(file.name)}
+                            </span>
+
+                        </div>
+                        `;
+
+                }
+            );
+
+        }
+
+
+
+        // =================================================
+        // SELECTED USER IMAGE PREVIEW
+        // =================================================
+
+        const selectedImage =
+            document.getElementById(
+                "selectedUserImage"
+            );
+
+
+        const selectedPreview =
+            document.getElementById(
+                "selectedImagePreview"
+            );
+
+
+        if (selectedImage) {
+
+            selectedImage.addEventListener(
+                "change",
+                function () {
+
+                    if (
+                        !selectedPreview ||
+                        !this.files ||
+                        this.files.length === 0
+                    ) {
+
+                        if (selectedPreview) {
+
+                            selectedPreview.innerHTML =
+                                "";
+
+                        }
+
+                        return;
+                    }
+
+
+                    const file =
+                        this.files[0];
+
+
+                    // Check size
+
+                    if (
+                        file.size >
+                        5 * 1024 * 1024
+                    ) {
+
+                        alert(
+                            "Image size must be less than 5 MB."
+                        );
+
+                        this.value = "";
+
+                        selectedPreview.innerHTML =
+                            "";
+
+                        return;
+                    }
+
+
+                    // Check type
+
+                    const allowedTypes = [
+                        "image/jpeg",
+                        "image/png",
+                        "image/webp"
+                    ];
+
+
+                    if (
+                        !allowedTypes.includes(
+                            file.type
+                        )
+                    ) {
+
+                        alert(
+                            "Only JPG, PNG and WEBP images are allowed."
+                        );
+
+                        this.value = "";
+
+                        selectedPreview.innerHTML =
+                            "";
+
+                        return;
+                    }
+
+
+                    selectedPreview.innerHTML =
+                        `
+                        <div class="selected-image-info">
+
+                            📷
+                            <span>
+                                ${escapeHtml(file.name)}
+                            </span>
+
+                        </div>
+                        `;
+
+                }
+            );
+
+        }
+
+    }
+);
+
+
+
+// =========================================================
+// SAFE HTML TEXT
+// =========================================================
+
+function escapeHtml(value) {
+
+    if (!value) {
+        return "";
+    }
+
+
+    return String(value)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+}
+
+</script>
+
+
+
+<!-- =========================================================
+     APPLICATION JAVASCRIPT
+========================================================== -->
+
+<script src="/js/app.js?v=1002"></script>
+
+
+</body>
+
+</html>
