@@ -1,12 +1,21 @@
 "use strict";
 
-// ==========================================================
-// REAL-TIME CHAT APPLICATION
-// ==========================================================
+/* ==========================================================
+   REAL-TIME CHAT APPLICATION
+   ========================================================== */
+
+const API_BASE_URL = (typeof window !== "undefined" && window.location && window.location.protocol.startsWith("http"))
+    ? window.location.origin
+    : "https://chatconvertion.onrender.com";
 
 console.log("======================================");
 console.log("Real-Time Chat app.js loaded");
 console.log("======================================");
+
+
+/* ==========================================================
+   GLOBAL VARIABLES
+   ========================================================== */
 
 let currentUser = null;
 let currentUserId = null;
@@ -16,19 +25,23 @@ let selectedUserId = null;
 
 let connection = null;
 
-let typingTimer = null;
+/* One timeout per typing-indicator element, keyed by element id */
+let typingTimers = {};
+
 let userRefreshTimer = null;
+
+/* Store latest users returned by API */
+let cachedUsers = [];
+
 const displayedMessageIds = new Set();
 
-
-// ==========================================================
-// HELPER FUNCTIONS
-// ==========================================================
+let recipientUserId = null;
 
 
-// ----------------------------------------------------------
-// Get User ID
-// ----------------------------------------------------------
+/* ==========================================================
+   HELPER FUNCTIONS
+   ========================================================== */
+
 
 function getUserId(user) {
 
@@ -55,10 +68,6 @@ function getUserId(user) {
 }
 
 
-// ----------------------------------------------------------
-// Get Username
-// ----------------------------------------------------------
-
 function getUsername(user) {
 
     if (!user) {
@@ -80,10 +89,6 @@ function getUsername(user) {
 }
 
 
-// ----------------------------------------------------------
-// Get Email
-// ----------------------------------------------------------
-
 function getUserEmail(user) {
 
     if (!user) {
@@ -97,10 +102,6 @@ function getUserEmail(user) {
     );
 }
 
-
-// ----------------------------------------------------------
-// Get Profile Image
-// ----------------------------------------------------------
 
 function getProfileImage(user) {
 
@@ -120,10 +121,6 @@ function getProfileImage(user) {
 }
 
 
-// ----------------------------------------------------------
-// Escape HTML
-// ----------------------------------------------------------
-
 function escapeHtml(value) {
 
     if (
@@ -142,10 +139,6 @@ function escapeHtml(value) {
     return div.innerHTML;
 }
 
-
-// ----------------------------------------------------------
-// Message ID
-// ----------------------------------------------------------
 
 function getMessageId(message) {
 
@@ -168,10 +161,6 @@ function getMessageId(message) {
 }
 
 
-// ----------------------------------------------------------
-// Message Sender ID
-// ----------------------------------------------------------
-
 function getMessageSenderId(message) {
 
     if (!message) {
@@ -192,10 +181,6 @@ function getMessageSenderId(message) {
     return numberId;
 }
 
-
-// ----------------------------------------------------------
-// Message Receiver ID
-// ----------------------------------------------------------
 
 function getMessageReceiverId(message) {
 
@@ -218,10 +203,6 @@ function getMessageReceiverId(message) {
 }
 
 
-// ----------------------------------------------------------
-// Message Content
-// ----------------------------------------------------------
-
 function getMessageText(message) {
 
     if (!message) {
@@ -240,10 +221,6 @@ function getMessageText(message) {
 }
 
 
-// ----------------------------------------------------------
-// Message Type
-// ----------------------------------------------------------
-
 function getMessageType(message) {
 
     if (!message) {
@@ -257,10 +234,6 @@ function getMessageType(message) {
     );
 }
 
-
-// ----------------------------------------------------------
-// Media URL
-// ----------------------------------------------------------
 
 function getMediaUrl(message) {
 
@@ -276,10 +249,6 @@ function getMediaUrl(message) {
 }
 
 
-// ----------------------------------------------------------
-// Message Date
-// ----------------------------------------------------------
-
 function getMessageDate(message) {
 
     if (!message) {
@@ -293,10 +262,6 @@ function getMessageDate(message) {
     );
 }
 
-
-// ----------------------------------------------------------
-// Format Message Time
-// ----------------------------------------------------------
 
 function formatMessageTime(createdAt) {
 
@@ -325,14 +290,9 @@ function formatMessageTime(createdAt) {
 }
 
 
-// ==========================================================
-// CURRENT USER
-// ==========================================================
-
-
-// ----------------------------------------------------------
-// Get Current User From LocalStorage
-// ----------------------------------------------------------
+/* ==========================================================
+   CURRENT USER
+   ========================================================== */
 
 function getCurrentUser() {
 
@@ -363,7 +323,9 @@ function getCurrentUser() {
 
 
         storedUser =
-            localStorage.getItem("currentUser");
+            localStorage.getItem(
+                "currentUser"
+            );
 
         if (storedUser) {
 
@@ -387,7 +349,9 @@ function getCurrentUser() {
 
 
         storedUser =
-            localStorage.getItem("authUser");
+            localStorage.getItem(
+                "authUser"
+            );
 
         if (storedUser) {
 
@@ -456,10 +420,6 @@ function getCurrentUser() {
 }
 
 
-// ----------------------------------------------------------
-// Save Current User
-// ----------------------------------------------------------
-
 function saveCurrentUser(user) {
 
     const id =
@@ -493,10 +453,6 @@ function saveCurrentUser(user) {
 }
 
 
-// ----------------------------------------------------------
-// Update Current User UI
-// ----------------------------------------------------------
-
 function updateCurrentUserUI() {
 
     if (!currentUser) {
@@ -513,7 +469,6 @@ function updateCurrentUserUI() {
         getProfileImage(currentUser);
 
 
-    // Current user avatar
     const avatar =
         document.getElementById(
             "currentUserAvatar"
@@ -541,7 +496,6 @@ function updateCurrentUserUI() {
     }
 
 
-    // Current user name
     const nameElement =
         document.getElementById(
             "currentUserName"
@@ -554,7 +508,6 @@ function updateCurrentUserUI() {
     }
 
 
-    // Current user email
     const emailElement =
         document.getElementById(
             "currentUserEmail"
@@ -567,7 +520,6 @@ function updateCurrentUserUI() {
     }
 
 
-    // Left chat title
     const sangitaTitle =
         document.getElementById(
             "sangitaTitle"
@@ -580,7 +532,6 @@ function updateCurrentUserUI() {
     }
 
 
-    // Left chat user ID
     const sangitaUserId =
         document.getElementById(
             "sangitaUserId"
@@ -594,10 +545,6 @@ function updateCurrentUserUI() {
 }
 
 
-// ==========================================================
-// REFRESH CURRENT USER DETAILS
-// ==========================================================
-
 async function refreshCurrentUserDetails() {
 
     if (!currentUserId) {
@@ -607,8 +554,9 @@ async function refreshCurrentUserDetails() {
     try {
 
         const response =
-            await fetch("/api/users");
-
+    await fetch(
+        `${API_BASE_URL}/api/users`
+    );
         if (!response.ok) {
             return;
         }
@@ -632,6 +580,9 @@ async function refreshCurrentUserDetails() {
         if (!Array.isArray(users)) {
             return;
         }
+
+        /* Keep users cache updated */
+        cachedUsers = users;
 
         const latestUser =
             users.find(
@@ -662,9 +613,544 @@ async function refreshCurrentUserDetails() {
 }
 
 
-// ==========================================================
-// SIGNALR CONNECTION
-// ==========================================================
+/* ==========================================================
+   TYPING INDICATOR STYLES
+   ========================================================== */
+
+function addTypingStyles() {
+
+    if (
+        document.getElementById(
+            "typing-indicator-styles"
+        )
+    ) {
+        return;
+    }
+
+    const style =
+        document.createElement("style");
+
+    style.id =
+        "typing-indicator-styles";
+
+    style.textContent = `
+
+        .typing-indicator {
+            min-height: 0;
+            height: 0;
+            padding: 0 18px;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            overflow: hidden;
+            opacity: 0;
+            transition:
+                height 0.2s ease,
+                opacity 0.2s ease,
+                padding 0.2s ease;
+            font-size: 13px;
+            color: #6b7280;
+        }
+
+        .typing-indicator.show {
+            height: 34px;
+            padding-top: 6px;
+            padding-bottom: 6px;
+            opacity: 1;
+        }
+
+        .typing-indicator .typing-name {
+            font-weight: 600;
+        }
+
+        .typing-indicator .typing-text {
+            font-weight: 400;
+        }
+
+        .typing-indicator .typing-dots {
+            display: inline-flex;
+            align-items: center;
+            gap: 3px;
+            margin-left: 2px;
+        }
+
+        .typing-indicator .typing-dots span {
+            width: 5px;
+            height: 5px;
+            border-radius: 50%;
+            background: currentColor;
+            opacity: 0.35;
+            animation:
+                typingDot 1.4s
+                infinite ease-in-out;
+        }
+
+        .typing-indicator .typing-dots span:nth-child(1) {
+            animation-delay: 0s;
+        }
+
+        .typing-indicator .typing-dots span:nth-child(2) {
+            animation-delay: 0.2s;
+        }
+
+        .typing-indicator .typing-dots span:nth-child(3) {
+            animation-delay: 0.4s;
+        }
+
+        @keyframes typingDot {
+
+            0%,
+            60%,
+            100% {
+                transform: translateY(0);
+                opacity: 0.35;
+            }
+
+            30% {
+                transform: translateY(-4px);
+                opacity: 1;
+            }
+        }
+    `;
+
+    document.head.appendChild(style);
+}
+
+
+/* ==========================================================
+   SHOW TYPING INDICATOR
+   ========================================================== */
+
+function showTypingIndicator(
+    senderId,
+    receiverId
+) {
+
+    senderId =
+        Number(senderId);
+
+    receiverId =
+        Number(receiverId);
+
+
+    if (
+        !currentUserId ||
+        !selectedUserId
+    ) {
+        return;
+    }
+
+
+    let targetElementId = null;
+    let typerName = "";
+
+
+    if (
+        senderId === Number(currentUserId) &&
+        receiverId === Number(selectedUserId)
+    ) {
+
+        targetElementId =
+            "typingIndicatorSelectedBox";
+
+        typerName =
+            getUsername(currentUser);
+    }
+
+    else if (
+        senderId === Number(selectedUserId) &&
+        receiverId === Number(currentUserId)
+    ) {
+
+        targetElementId =
+            "typingIndicatorCurrentBox";
+
+        typerName =
+            getUsername(selectedUser);
+    }
+
+    else {
+        return;
+    }
+
+
+    const typingEl =
+        document.getElementById(
+            targetElementId
+        );
+
+    if (!typingEl) {
+        return;
+    }
+
+
+    typingEl.innerHTML = `
+
+        <span class="typing-name">
+            ${escapeHtml(typerName)}
+        </span>
+
+        <span class="typing-text">
+            is typing
+        </span>
+
+        <span class="typing-dots">
+            <span></span>
+            <span></span>
+            <span></span>
+        </span>
+
+    `;
+
+
+    typingEl.classList.add(
+        "show"
+    );
+
+
+    clearTimeout(
+        typingTimers[targetElementId]
+    );
+
+
+    typingTimers[targetElementId] =
+        setTimeout(
+            function () {
+
+                typingEl.innerHTML =
+                    "";
+
+                typingEl.classList.remove(
+                    "show"
+                );
+
+            },
+            2500
+        );
+}
+
+
+/* ==========================================================
+   HIDE TYPING INDICATOR
+   ========================================================== */
+
+function hideTypingIndicator(elementId) {
+
+    const idsToHide =
+        elementId
+            ? [elementId]
+            : [
+                "typingIndicatorCurrentBox",
+                "typingIndicatorSelectedBox"
+            ];
+
+
+    idsToHide.forEach(
+        function (id) {
+
+            clearTimeout(
+                typingTimers[id]
+            );
+
+            const typingEl =
+                document.getElementById(
+                    id
+                );
+
+            if (!typingEl) {
+                return;
+            }
+
+            typingEl.innerHTML =
+                "";
+
+            typingEl.classList.remove(
+                "show"
+            );
+        }
+    );
+}
+
+
+/* ==========================================================
+   BROWSER NOTIFICATION - NEW MESSAGE
+   ========================================================== */
+
+let notificationPermissionRequested = false;
+
+
+async function requestNotificationPermission() {
+
+    if (!("Notification" in window)) {
+
+        console.warn(
+            "Browser notifications are not supported."
+        );
+
+        return false;
+    }
+
+
+    if (
+        Notification.permission ===
+        "granted"
+    ) {
+
+        return true;
+    }
+
+
+    if (
+        Notification.permission ===
+        "denied"
+    ) {
+
+        console.warn(
+            "Browser notification permission was denied."
+        );
+
+        return false;
+    }
+
+
+    if (notificationPermissionRequested) {
+        return false;
+    }
+
+
+    notificationPermissionRequested =
+        true;
+
+
+    try {
+
+        const permission =
+            await Notification.requestPermission();
+
+        console.log(
+            "Notification permission:",
+            permission
+        );
+
+        return permission === "granted";
+
+    }
+    catch (error) {
+
+        console.error(
+            "Notification permission error:",
+            error
+        );
+
+        return false;
+    }
+}
+
+
+async function showMessageNotification(message) {
+
+    if (
+        !message ||
+        !currentUserId
+    ) {
+        return;
+    }
+
+
+    const senderId =
+        getMessageSenderId(message);
+
+    const receiverId =
+        getMessageReceiverId(message);
+
+
+    /* Only notify the actual recipient */
+
+    if (
+        Number(receiverId) !==
+        Number(currentUserId)
+    ) {
+        return;
+    }
+
+
+    /* Do not notify yourself */
+
+    if (
+        Number(senderId) ===
+        Number(currentUserId)
+    ) {
+        return;
+    }
+
+
+    const allowed =
+        await requestNotificationPermission();
+
+
+    if (!allowed) {
+        return;
+    }
+
+
+    let senderName =
+        "New Message";
+
+
+    /* Use currently selected user's name when available */
+
+    if (
+        selectedUser &&
+        Number(
+            getUserId(selectedUser)
+        ) === Number(senderId)
+    ) {
+
+        senderName =
+            getUsername(selectedUser);
+
+    }
+    else {
+
+        /* Find sender name from users API */
+
+        try {
+
+            const response =
+                await fetch(
+                    "/api/users"
+                );
+
+
+            if (response.ok) {
+
+                const users =
+                    await response.json();
+
+
+                if (Array.isArray(users)) {
+
+                    const sender =
+                        users.find(
+                            user =>
+                                Number(
+                                    getUserId(user)
+                                ) === Number(senderId)
+                        );
+
+
+                    if (sender) {
+
+                        senderName =
+                            getUsername(sender);
+                    }
+                }
+            }
+
+        }
+        catch (error) {
+
+            console.warn(
+                "Could not find sender name:",
+                error
+            );
+        }
+    }
+
+
+    const messageType =
+        getMessageType(message)
+            .toLowerCase();
+
+
+    let messagePreview = "";
+
+
+    if (messageType === "image") {
+
+        messagePreview =
+            "📷 Image";
+
+    }
+    else {
+
+        messagePreview =
+            getMessageText(message).trim() ||
+            "New message";
+    }
+
+
+    if (
+        messagePreview.length > 100
+    ) {
+
+        messagePreview =
+            messagePreview.substring(
+                0,
+                100
+            ) +
+            "...";
+    }
+
+
+    try {
+
+        const notification =
+            new Notification(
+                senderName,
+                {
+                    body: messagePreview,
+                    icon: getProfileImage(
+                        selectedUser
+                    ) || "/favicon.ico",
+                    tag: `chat-message-${senderId}`,
+                    renotify: true
+                }
+            );
+
+
+        notification.onclick =
+            function () {
+
+                window.focus();
+
+                notification.close();
+
+
+                if (
+                    selectedUser &&
+                    Number(
+                        getUserId(selectedUser)
+                    ) === Number(senderId)
+                ) {
+
+                    loadMessages();
+                }
+            };
+
+
+        setTimeout(
+            function () {
+                notification.close();
+            },
+            5000
+        );
+
+    }
+    catch (error) {
+
+        console.error(
+            "Could not show notification:",
+            error
+        );
+    }
+}
+
+
+/* ==========================================================
+   SIGNALR CONNECTION
+   ========================================================== */
 
 async function startConnection() {
 
@@ -682,28 +1168,26 @@ async function startConnection() {
 
 
     const token =
-        localStorage.getItem("token");
+        localStorage.getItem(
+            "token"
+        );
 
 
     connection =
-        new signalR.HubConnectionBuilder()
-            .withUrl(
-                "/chatHub",
-                {
-                    accessTokenFactory:
-                        () => token || ""
-                }
-            )
+    new signalR.HubConnectionBuilder()
+        .withUrl(
+            `${API_BASE_URL}/chatHub`,
+            {
+                accessTokenFactory:
+                    () => token || ""
+            }
+        )
             .withAutomaticReconnect()
             .configureLogging(
                 signalR.LogLevel.Information
             )
             .build();
 
-
-    // ======================================================
-    // RECEIVE MESSAGE
-    // ======================================================
 
     connection.on(
         "ReceiveMessage",
@@ -714,13 +1198,47 @@ async function startConnection() {
                 message
             );
 
+
+            /* Show in-app popup and browser notification for recipient */
+            if (message) {
+                const sId = getMessageSenderId(message);
+                const rId = getMessageReceiverId(message);
+                if (rId === Number(currentUserId) && sId !== Number(currentUserId)) {
+                    let senderName = `User ID ${sId}`;
+                    const sUser = cachedUsers.find(u => Number(getUserId(u)) === Number(sId));
+                    if (sUser) {
+                        senderName = getUsername(sUser);
+                    } else if (selectedUser && Number(getUserId(selectedUser)) === Number(sId)) {
+                        senderName = getUsername(selectedUser);
+                    }
+
+                    const preview = getMessageType(message).toLowerCase() === "image"
+                        ? "📷 Sent an image"
+                        : (getMessageText(message) || "New message");
+
+                    showNotification({
+                        title: `Message from ${senderName}`,
+                        message: preview,
+                        type: "info",
+                        duration: 5000
+                    });
+                }
+            }
+
+            showMessageNotification(
+                message
+            );
+
+
             if (!message) {
                 return;
             }
 
+
             if (!currentUserId) {
                 return;
             }
+
 
             if (!selectedUserId) {
                 return;
@@ -746,11 +1264,11 @@ async function startConnection() {
             }
 
 
-            // Check conversation
             const validConversation =
                 (
                     senderId ===
                     Number(currentUserId) &&
+
                     receiverId ===
                     Number(selectedUserId)
                 )
@@ -758,6 +1276,7 @@ async function startConnection() {
                 (
                     senderId ===
                     Number(selectedUserId) &&
+
                     receiverId ===
                     Number(currentUserId)
                 );
@@ -768,7 +1287,9 @@ async function startConnection() {
             }
 
 
-            // Current user perspective
+            hideTypingIndicator();
+
+
             const myMessages =
                 document.getElementById(
                     "sangitaMessages"
@@ -784,7 +1305,6 @@ async function startConnection() {
             }
 
 
-            // Selected user perspective
             const selectedMessages =
                 document.getElementById(
                     "selectedMessages"
@@ -802,69 +1322,30 @@ async function startConnection() {
     );
 
 
-    // ======================================================
-    // TYPING
-    // ======================================================
+    /* Still listen for server-relayed typing events,
+       for real cross-browser / multi-device usage */
 
     connection.on(
         "UserTyping",
-        function (senderId) {
+        function (
+            senderId,
+            receiverId
+        ) {
 
-            senderId =
-                Number(senderId);
-
-
-            if (
-                !selectedUserId ||
-                senderId !==
-                Number(selectedUserId)
-            ) {
-                return;
-            }
-
-
-            const typing =
-                document.getElementById(
-                    "typing"
-                );
-
-            if (!typing) {
-                return;
-            }
-
-
-            const username =
-                getUsername(
-                    selectedUser
-                );
-
-
-            typing.textContent =
-                `${username} is typing...`;
-
-
-            clearTimeout(
-                typingTimer
+            console.log(
+                "User typing (from server):",
+                senderId,
+                receiverId
             );
 
 
-            typingTimer =
-                setTimeout(
-                    function () {
-
-                        typing.textContent =
-                            "";
-
-                    },
-                    2000
-                );
+            showTypingIndicator(
+                senderId,
+                receiverId
+            );
         }
     );
 
-
-    // ======================================================
-    // RECONNECTED
-    // ======================================================
 
     connection.onreconnected(
         async function () {
@@ -873,6 +1354,12 @@ async function startConnection() {
                 "SignalR reconnected."
             );
 
+            if (currentUserId) {
+                try {
+                    await connection.invoke("RegisterUser", Number(currentUserId));
+                } catch (e) {}
+            }
+
             if (selectedUserId) {
 
                 await loadMessages();
@@ -880,10 +1367,6 @@ async function startConnection() {
         }
     );
 
-
-    // ======================================================
-    // CONNECTION CLOSED
-    // ======================================================
 
     connection.onclose(
         function (error) {
@@ -896,10 +1379,6 @@ async function startConnection() {
     );
 
 
-    // ======================================================
-    // START CONNECTION
-    // ======================================================
-
     try {
 
         await connection.start();
@@ -907,6 +1386,15 @@ async function startConnection() {
         console.log(
             "SignalR connected successfully."
         );
+
+        if (currentUserId) {
+            try {
+                await connection.invoke("RegisterUser", Number(currentUserId));
+                console.log("SignalR registered user:", currentUserId);
+            } catch (err) {
+                console.warn("RegisterUser failed:", err);
+            }
+        }
 
     }
     catch (error) {
@@ -919,36 +1407,43 @@ async function startConnection() {
 }
 
 
-// ==========================================================
-// USERS
-// ==========================================================
+/* ==========================================================
+   USERS
+   ========================================================== */
 
-
-// ----------------------------------------------------------
-// Load Users
-// ----------------------------------------------------------
-
-async function loadUsers(
-    search = ""
-) {
+async function loadUsers(search = "") {
 
     try {
 
         let url =
-            "/api/users";
+            `${API_BASE_URL}/api/users`;
 
 
-        if (search.trim() !== "") {
+        if (
+            search.trim() !== ""
+        ) {
 
             url =
-                `/api/users?search=${encodeURIComponent(
+                `${API_BASE_URL}/api/users?search=${encodeURIComponent(
                     search
                 )}`;
         }
 
 
+        console.log(
+            "Loading users from:",
+            url
+        );
+
+
         const response =
             await fetch(url);
+
+
+        console.log(
+            "Users API status:",
+            response.status
+        );
 
 
         if (!response.ok) {
@@ -989,6 +1484,12 @@ async function loadUsers(
             await response.json();
 
 
+        console.log(
+            "Users received from Render:",
+            users
+        );
+
+
         if (!Array.isArray(users)) {
 
             console.error(
@@ -998,6 +1499,9 @@ async function loadUsers(
 
             return;
         }
+
+
+        cachedUsers = users;
 
 
         const list =
@@ -1016,12 +1520,9 @@ async function loadUsers(
         }
 
 
-        list.innerHTML = "";
+        list.innerHTML =
+            "";
 
-
-        // ==================================================
-        // DISPLAY USERS
-        // ==================================================
 
         users.forEach(
             function (user) {
@@ -1035,11 +1536,16 @@ async function loadUsers(
                 }
 
 
-                // Do not display current user
+                /*
+                 * Don't show current logged-in
+                 * user in the user list.
+                 */
+
                 if (
                     userId ===
                     Number(currentUserId)
                 ) {
+
                     return;
                 }
 
@@ -1051,25 +1557,20 @@ async function loadUsers(
                     getProfileImage(user);
 
 
-                // ==================================================
-                // IMPORTANT:
-                // ONLY SELECTED USER IS ONLINE
-                // EVERY OTHER USER IS OFFLINE
-                // ==================================================
-
                 const isSelected =
                     selectedUserId !== null &&
                     Number(userId) ===
                     Number(selectedUserId);
 
 
+                /*
+                 * At the moment the selected user
+                 * is displayed as online.
+                 */
+
                 const online =
                     isSelected;
 
-
-                // ==================================================
-                // CREATE USER ELEMENT
-                // ==================================================
 
                 const userElement =
                     document.createElement(
@@ -1089,44 +1590,47 @@ async function loadUsers(
                 }
 
 
-                // ==================================================
-                // AVATAR
-                // ==================================================
-
-                let avatarHTML = "";
+                let avatarHTML =
+                    "";
 
 
                 if (profileImage) {
 
                     avatarHTML = `
+
                         <div class="user-avatar">
 
                             <img
-                                src="${escapeHtml(profileImage)}"
-                                alt="${escapeHtml(username)}"
+                                src="${escapeHtml(
+                                    profileImage
+                                )}"
+                                alt="${escapeHtml(
+                                    username
+                                )}"
                             >
 
                         </div>
+
                     `;
 
                 }
                 else {
 
                     avatarHTML = `
+
                         <div class="user-avatar">
+
                             ${escapeHtml(
                                 username
                                     .charAt(0)
                                     .toUpperCase()
                             )}
+
                         </div>
+
                     `;
                 }
 
-
-                // ==================================================
-                // USER HTML
-                // ==================================================
 
                 userElement.innerHTML = `
 
@@ -1135,7 +1639,9 @@ async function loadUsers(
                     <div class="user-info">
 
                         <h3>
-                            ${escapeHtml(username)}
+                            ${escapeHtml(
+                                username
+                            )}
                         </h3>
 
                         <span class="user-status">
@@ -1149,12 +1655,9 @@ async function loadUsers(
                         </span>
 
                     </div>
+
                 `;
 
-
-                // ==================================================
-                // USER CLICK
-                // ==================================================
 
                 userElement.addEventListener(
                     "click",
@@ -1169,13 +1672,10 @@ async function loadUsers(
                 list.appendChild(
                     userElement
                 );
+
             }
         );
 
-
-        // ==================================================
-        // NO USERS
-        // ==================================================
 
         if (
             list.children.length ===
@@ -1183,11 +1683,22 @@ async function loadUsers(
         ) {
 
             list.innerHTML = `
+
                 <div class="no-users">
+
                     No other users found.
+
                 </div>
+
             `;
         }
+
+
+        /*
+         * Populate recipient dropdown
+         */
+
+        populateRecipientUsers(users);
 
     }
     catch (error) {
@@ -1207,18 +1718,113 @@ async function loadUsers(
         if (list) {
 
             list.innerHTML = `
+
                 <div class="no-users">
+
                     Unable to load users.
+
                 </div>
+
             `;
         }
     }
 }
 
 
-// ==========================================================
-// SELECT USER
-// ==========================================================
+/* ==========================================================
+   CHECK RECIPIENT OFFLINE STATUS
+   ========================================================== */
+
+function isUserOffline(userId) {
+
+    userId =
+        Number(userId);
+
+    if (!userId) {
+        return false;
+    }
+
+
+    /*
+     * First check the selected user because this is the
+     * most direct user object when a chat is selected.
+     */
+
+    if (
+        selectedUser &&
+        Number(getUserId(selectedUser)) === userId
+    ) {
+
+        const selectedOnline =
+            selectedUser.isOnline ??
+            selectedUser.IsOnline ??
+            selectedUser.online ??
+            selectedUser.Online;
+
+        if (
+            selectedOnline !== undefined &&
+            selectedOnline !== null
+        ) {
+
+            return (
+                selectedOnline === false ||
+                selectedOnline === 0 ||
+                String(selectedOnline).toLowerCase() === "false" ||
+                String(selectedOnline) === "0"
+            );
+        }
+    }
+
+
+    /*
+     * Otherwise check the latest users returned
+     * by /api/users.
+     */
+
+    const user =
+        cachedUsers.find(
+            function (item) {
+
+                return (
+                    Number(getUserId(item)) ===
+                    userId
+                );
+            }
+        );
+
+
+    if (!user) {
+        return false;
+    }
+
+
+    const isOnline =
+        user.isOnline ??
+        user.IsOnline ??
+        user.online ??
+        user.Online;
+
+
+    if (
+        isOnline === undefined ||
+        isOnline === null
+    ) {
+        return false;
+    }
+
+
+    return (
+        isOnline === false ||
+        isOnline === 0 ||
+        String(isOnline).toLowerCase() === "false" ||
+        String(isOnline) === "0"
+    );
+}
+
+
+/* ==========================================================
+   SELECT USER
+   ========================================================== */
 
 async function selectUser(user) {
 
@@ -1245,20 +1851,23 @@ async function selectUser(user) {
     }
 
 
-    // ======================================================
-    // SET SELECTED USER
-    // ======================================================
-
     selectedUser =
         user;
 
     selectedUserId =
         id;
 
+    recipientUserId =
+        id;
+
+    const recipientSelect =
+        document.getElementById("recipientUserSelect");
+    if (recipientSelect && String(recipientSelect.value) !== String(id)) {
+        recipientSelect.value = String(id);
+    }
 
     const username =
         getUsername(user);
-
 
     console.log(
         "Selected user:",
@@ -1266,14 +1875,14 @@ async function selectUser(user) {
     );
 
 
-    // ======================================================
-    // CHAT HEADER
-    // ======================================================
+    hideTypingIndicator();
+
 
     const chatUserName =
         document.getElementById(
             "chatUserName"
         );
+
 
     if (chatUserName) {
 
@@ -1282,15 +1891,11 @@ async function selectUser(user) {
     }
 
 
-    // ======================================================
-    // CHAT STATUS
-    // ONLY SELECTED USER = ONLINE
-    // ======================================================
-
     const chatStatus =
         document.getElementById(
             "chatStatus"
         );
+
 
     if (chatStatus) {
 
@@ -1299,14 +1904,11 @@ async function selectUser(user) {
     }
 
 
-    // ======================================================
-    // SELECTED USER BOX
-    // ======================================================
-
     const selectedTitle =
         document.getElementById(
             "selectedUserTitle"
         );
+
 
     if (selectedTitle) {
 
@@ -1320,6 +1922,7 @@ async function selectUser(user) {
             "selectedUserId"
         );
 
+
     if (selectedIdElement) {
 
         selectedIdElement.textContent =
@@ -1327,14 +1930,11 @@ async function selectUser(user) {
     }
 
 
-    // ======================================================
-    // SELECTED USER INPUT
-    // ======================================================
-
     const selectedInput =
         document.getElementById(
             "selectedUserInput"
         );
+
 
     if (selectedInput) {
 
@@ -1343,14 +1943,11 @@ async function selectUser(user) {
     }
 
 
-    // ======================================================
-    // CLEAR IMAGE PREVIEWS
-    // ======================================================
-
     const preview1 =
         document.getElementById(
             "sangitaImagePreview"
         );
+
 
     if (preview1) {
         preview1.innerHTML = "";
@@ -1362,6 +1959,7 @@ async function selectUser(user) {
             "selectedImagePreview"
         );
 
+
     if (preview2) {
         preview2.innerHTML = "";
     }
@@ -1371,6 +1969,7 @@ async function selectUser(user) {
         document.getElementById(
             "sangitaImage"
         );
+
 
     if (image1) {
         image1.value = "";
@@ -1382,20 +1981,17 @@ async function selectUser(user) {
             "selectedUserImage"
         );
 
+
     if (image2) {
         image2.value = "";
     }
 
 
-    // ======================================================
-    // REFRESH USER LIST
-    // THIS MAKES ONLY SELECTED USER ONLINE
-    // ======================================================
-
     const searchInput =
         document.getElementById(
             "searchUser"
         );
+
 
     const search =
         searchInput
@@ -1403,25 +1999,18 @@ async function selectUser(user) {
             : "";
 
 
-    await loadUsers(search);
+    await loadUsers(
+        search
+    );
 
-
-    // ======================================================
-    // LOAD MESSAGE HISTORY
-    // ======================================================
 
     await loadMessages();
 }
 
 
-// ==========================================================
-// MESSAGES
-// ==========================================================
-
-
-// ----------------------------------------------------------
-// Load Messages
-// ----------------------------------------------------------
+/* ==========================================================
+   MESSAGES
+   ========================================================== */
 
 async function loadMessages() {
 
@@ -1434,9 +2023,7 @@ async function loadMessages() {
 
 
     const url =
-        `/api/messages/${currentUserId}/${selectedUserId}`;
-
-
+    `${API_BASE_URL}/api/messages/${currentUserId}/${selectedUserId}`;
     console.log(
         "Loading messages:",
         url
@@ -1499,7 +2086,6 @@ async function loadMessages() {
         }
 
 
-        // Clear both boxes
         clearMessages(
             "sangitaMessages"
         );
@@ -1509,11 +2095,9 @@ async function loadMessages() {
         );
 
 
-        // Clear duplicate tracking
         displayedMessageIds.clear();
 
 
-        // No messages
         if (
             messages.length === 0
         ) {
@@ -1532,7 +2116,6 @@ async function loadMessages() {
         }
 
 
-        // Display messages
         messages.forEach(
             function (message) {
 
@@ -1591,10 +2174,6 @@ async function loadMessages() {
 }
 
 
-// ----------------------------------------------------------
-// Add Message To Container
-// ----------------------------------------------------------
-
 function addMessageToContainer(
     container,
     message,
@@ -1610,7 +2189,6 @@ function addMessageToContainer(
         getMessageId(message);
 
 
-    // Prevent duplicates
     if (messageId) {
 
         const uniqueId =
@@ -1622,6 +2200,7 @@ function addMessageToContainer(
                 uniqueId
             )
         ) {
+
             return;
         }
 
@@ -1632,7 +2211,6 @@ function addMessageToContainer(
     }
 
 
-    // Sender
     const senderId =
         getMessageSenderId(
             message
@@ -1644,7 +2222,6 @@ function addMessageToContainer(
         Number(perspectiveUserId);
 
 
-    // Create message
     const messageElement =
         document.createElement(
             "div"
@@ -1657,14 +2234,12 @@ function addMessageToContainer(
             : "message received";
 
 
-    // Message type
     const messageType =
         getMessageType(
             message
         ).toLowerCase();
 
 
-    // Remove empty message
     const empty =
         container.querySelector(
             ".empty-chat"
@@ -1676,12 +2251,9 @@ function addMessageToContainer(
     }
 
 
-    // ======================================================
-    // IMAGE MESSAGE
-    // ======================================================
-
     if (
-        messageType === "image"
+        messageType ===
+        "image"
     ) {
 
         const mediaUrl =
@@ -1695,22 +2267,17 @@ function addMessageToContainer(
                     "img"
                 );
 
-
             image.className =
                 "chat-image";
-
 
             image.src =
                 mediaUrl;
 
-
             image.alt =
                 "Image message";
 
-
             image.loading =
                 "lazy";
-
 
             image.addEventListener(
                 "click",
@@ -1723,19 +2290,12 @@ function addMessageToContainer(
                 }
             );
 
-
             messageElement.appendChild(
                 image
             );
         }
 
     }
-
-
-    // ======================================================
-    // TEXT MESSAGE
-    // ======================================================
-
     else {
 
         const text =
@@ -1743,26 +2303,19 @@ function addMessageToContainer(
                 "div"
             );
 
-
         text.className =
             "message-text";
-
 
         text.textContent =
             getMessageText(
                 message
             );
 
-
         messageElement.appendChild(
             text
         );
     }
 
-
-    // ======================================================
-    // MESSAGE TIME
-    // ======================================================
 
     const time =
         document.createElement(
@@ -1787,21 +2340,15 @@ function addMessageToContainer(
     );
 
 
-    // Add message
     container.appendChild(
         messageElement
     );
 
 
-    // Scroll bottom
     container.scrollTop =
         container.scrollHeight;
 }
 
-
-// ----------------------------------------------------------
-// Clear Messages
-// ----------------------------------------------------------
 
 function clearMessages(
     containerId
@@ -1818,13 +2365,10 @@ function clearMessages(
     }
 
 
-    container.innerHTML = "";
+    container.innerHTML =
+        "";
 }
 
-
-// ----------------------------------------------------------
-// Show Empty Message
-// ----------------------------------------------------------
 
 function showEmptyMessage(
     containerId,
@@ -1843,18 +2387,25 @@ function showEmptyMessage(
 
 
     container.innerHTML = `
+
         <div class="empty-chat">
+
             <p>
                 ${escapeHtml(text)}
             </p>
+
         </div>
     `;
 }
 
 
-// ==========================================================
-// SEND TEXT MESSAGE
-// ==========================================================
+/* ==========================================================
+   SEND TEXT MESSAGE
+   ========================================================== */
+
+/* ==========================================================
+   SEND TEXT MESSAGE
+   ========================================================== */
 
 async function sendMessage(
     senderId,
@@ -1944,6 +2495,30 @@ async function sendMessage(
 
     try {
 
+        hideTypingIndicator();
+
+
+        /*
+         * =====================================================
+         * CHECK RECIPIENT STATUS BEFORE SENDING
+         * =====================================================
+         *
+         * We only remember whether the recipient is offline.
+         *
+         * IMPORTANT:
+         * There is NO alert here.
+         */
+
+        const recipientWasOffline =
+            isUserOffline(receiverId);
+
+
+        /*
+         * =====================================================
+         * SEND MESSAGE
+         * =====================================================
+         */
+
         await connection.invoke(
             "SendMessage",
             senderId,
@@ -1952,7 +2527,12 @@ async function sendMessage(
         );
 
 
-        input.value = "";
+        /*
+         * Clear input only after successful sending.
+         */
+
+        input.value =
+            "";
 
         input.focus();
 
@@ -1962,6 +2542,32 @@ async function sendMessage(
             message
         );
 
+        let recipientName = "";
+        const rUser = cachedUsers.find(u => Number(getUserId(u)) === Number(receiverId));
+        if (rUser) {
+            recipientName = getUsername(rUser);
+        } else if (selectedUser && Number(getUserId(selectedUser)) === Number(receiverId)) {
+            recipientName = getUsername(selectedUser);
+        } else {
+            recipientName = `User ID ${receiverId}`;
+        }
+
+        showNotification({
+            title: "Message Sent",
+            message: `Message sent to ${recipientName}`,
+            type: "success",
+            duration: 3500
+        });
+
+        if (recipientWasOffline) {
+
+            await showSentMessageNotification(
+                senderId,
+                receiverId
+            );
+        }
+
+
     }
     catch (error) {
 
@@ -1970,21 +2576,15 @@ async function sendMessage(
             error
         );
 
+
         alert(
             "Message could not be sent."
         );
     }
 }
-
-
-// ==========================================================
-// IMAGE FUNCTIONS
-// ==========================================================
-
-
-// ----------------------------------------------------------
-// Preview Image
-// ----------------------------------------------------------
+/* ==========================================================
+   IMAGE FUNCTIONS
+   ========================================================== */
 
 function previewImage(
     file,
@@ -2002,7 +2602,8 @@ function previewImage(
     }
 
 
-    preview.innerHTML = "";
+    preview.innerHTML =
+        "";
 
 
     if (!file) {
@@ -2018,22 +2619,22 @@ function previewImage(
         function (event) {
 
             preview.innerHTML = `
+
                 <img
                     src="${event.target.result}"
                     class="image-preview"
                     alt="Image preview"
                 >
+
             `;
         };
 
 
-    reader.readAsDataURL(file);
+    reader.readAsDataURL(
+        file
+    );
 }
 
-
-// ----------------------------------------------------------
-// Upload Image
-// ----------------------------------------------------------
 
 async function uploadImage(file) {
 
@@ -2049,7 +2650,6 @@ async function uploadImage(file) {
     ];
 
 
-    // Validate type
     if (
         !allowedTypes.includes(
             file.type
@@ -2064,7 +2664,6 @@ async function uploadImage(file) {
     }
 
 
-    // Validate size
     if (
         file.size >
         5 * 1024 * 1024
@@ -2091,13 +2690,13 @@ async function uploadImage(file) {
     try {
 
         const response =
-            await fetch(
-                "/api/messages/upload-image",
-                {
-                    method: "POST",
-                    body: formData
-                }
-            );
+    await fetch(
+        `${API_BASE_URL}/api/messages/upload-image`,
+        {
+            method: "POST",
+            body: formData
+        }
+    );
 
 
         if (!response.ok) {
@@ -2110,9 +2709,11 @@ async function uploadImage(file) {
                 errorText
             );
 
+
             alert(
                 "Image upload failed."
             );
+
 
             return null;
         }
@@ -2170,18 +2771,16 @@ async function uploadImage(file) {
             error
         );
 
+
         alert(
             "Could not upload image."
         );
+
 
         return null;
     }
 }
 
-
-// ----------------------------------------------------------
-// Send Image
-// ----------------------------------------------------------
 
 async function sendImage(
     file,
@@ -2250,9 +2849,10 @@ async function sendImage(
 
     try {
 
-        // Upload image
         const mediaUrl =
-            await uploadImage(file);
+            await uploadImage(
+                file
+            );
 
 
         if (!mediaUrl) {
@@ -2266,8 +2866,6 @@ async function sendImage(
         );
 
 
-        // IMPORTANT:
-        // Send ONLY ONCE
         await connection.invoke(
             "SendImageMessage",
             senderId,
@@ -2280,6 +2878,22 @@ async function sendImage(
             "Image message sent successfully."
         );
 
+        let recipientName = "";
+        const rUser = cachedUsers.find(u => Number(getUserId(u)) === Number(receiverId));
+        if (rUser) {
+            recipientName = getUsername(rUser);
+        } else if (selectedUser && Number(getUserId(selectedUser)) === Number(receiverId)) {
+            recipientName = getUsername(selectedUser);
+        } else {
+            recipientName = `User ID ${receiverId}`;
+        }
+
+        showNotification({
+            title: "Image Sent",
+            message: `Image sent to ${recipientName}`,
+            type: "success",
+            duration: 3500
+        });
 
         return true;
 
@@ -2302,9 +2916,9 @@ async function sendImage(
 }
 
 
-// ==========================================================
-// CURRENT USER FORM
-// ==========================================================
+/* ==========================================================
+   CURRENT USER FORM
+   ========================================================== */
 
 function setupCurrentUserForm() {
 
@@ -2341,10 +2955,18 @@ function setupCurrentUserForm() {
             }
 
 
-            if (!selectedUserId) {
+            /* Use recipientUserId from the dropdown;
+               fall back to selectedUserId if dropdown not used */
+
+            const targetReceiverId =
+                recipientUserId ||
+                selectedUserId;
+
+
+            if (!targetReceiverId) {
 
                 alert(
-                    "Please select a user first."
+                    "Please select a recipient from the dropdown first."
                 );
 
                 return;
@@ -2361,21 +2983,20 @@ function setupCurrentUserForm() {
                 imageInput?.files?.[0];
 
 
-            // Image
             if (file) {
 
                 const sent =
                     await sendImage(
                         file,
                         currentUserId,
-                        selectedUserId
+                        targetReceiverId
                     );
 
 
                 if (sent) {
 
-                    imageInput.value = "";
-
+                    imageInput.value =
+                        "";
 
                     const preview =
                         document.getElementById(
@@ -2384,7 +3005,8 @@ function setupCurrentUserForm() {
 
 
                     if (preview) {
-                        preview.innerHTML = "";
+                        preview.innerHTML =
+                            "";
                     }
                 }
 
@@ -2393,10 +3015,9 @@ function setupCurrentUserForm() {
             }
 
 
-            // Text
             await sendMessage(
                 currentUserId,
-                selectedUserId,
+                targetReceiverId,
                 "sangitaInput"
             );
         }
@@ -2404,9 +3025,9 @@ function setupCurrentUserForm() {
 }
 
 
-// ==========================================================
-// SELECTED USER FORM
-// ==========================================================
+/* ==========================================================
+   SELECTED USER FORM
+   ========================================================== */
 
 function setupSelectedUserForm() {
 
@@ -2463,7 +3084,6 @@ function setupSelectedUserForm() {
                 imageInput?.files?.[0];
 
 
-            // Selected user -> current user
             if (file) {
 
                 const sent =
@@ -2476,8 +3096,8 @@ function setupSelectedUserForm() {
 
                 if (sent) {
 
-                    imageInput.value = "";
-
+                    imageInput.value =
+                        "";
 
                     const preview =
                         document.getElementById(
@@ -2486,8 +3106,11 @@ function setupSelectedUserForm() {
 
 
                     if (preview) {
-                        preview.innerHTML = "";
+
+                        preview.innerHTML =
+                            "";
                     }
+
                 }
 
 
@@ -2495,7 +3118,6 @@ function setupSelectedUserForm() {
             }
 
 
-            // Text
             await sendMessage(
                 selectedUserId,
                 currentUserId,
@@ -2506,9 +3128,9 @@ function setupSelectedUserForm() {
 }
 
 
-// ==========================================================
-// CURRENT USER IMAGE SELECTION
-// ==========================================================
+/* ==========================================================
+   CURRENT USER IMAGE
+   ========================================================== */
 
 function setupCurrentUserImage() {
 
@@ -2541,7 +3163,6 @@ function setupCurrentUserImage() {
             }
 
 
-            // Preview only
             previewImage(
                 file,
                 "sangitaImagePreview"
@@ -2557,9 +3178,9 @@ function setupCurrentUserImage() {
 }
 
 
-// ==========================================================
-// SELECTED USER IMAGE SELECTION
-// ==========================================================
+/* ==========================================================
+   SELECTED USER IMAGE
+   ========================================================== */
 
 function setupSelectedUserImage() {
 
@@ -2592,7 +3213,6 @@ function setupSelectedUserImage() {
             }
 
 
-            // Preview only
             previewImage(
                 file,
                 "selectedImagePreview"
@@ -2608,9 +3228,9 @@ function setupSelectedUserImage() {
 }
 
 
-// ==========================================================
-// SEARCH USERS
-// ==========================================================
+/* ==========================================================
+   SEARCH USERS
+   ========================================================== */
 
 function setupSearch() {
 
@@ -2625,7 +3245,8 @@ function setupSearch() {
     }
 
 
-    let searchTimer = null;
+    let searchTimer =
+        null;
 
 
     input.addEventListener(
@@ -2657,14 +3278,61 @@ function setupSearch() {
 }
 
 
-// ==========================================================
-// TYPING
-// ==========================================================
+/* ==========================================================
+   TYPING INDICATOR - SEND EVENT
+   ========================================================== */
+
+async function sendTypingEvent(
+    senderId,
+    receiverId
+) {
+
+    senderId =
+        Number(senderId);
+
+    receiverId =
+        Number(receiverId);
 
 
-// ----------------------------------------------------------
-// Current User Typing
-// ----------------------------------------------------------
+    if (
+        !senderId ||
+        !receiverId
+    ) {
+        return;
+    }
+
+
+    if (
+        !connection ||
+        connection.state !==
+        signalR.HubConnectionState.Connected
+    ) {
+        return;
+    }
+
+
+    try {
+
+        await connection.invoke(
+            "Typing",
+            senderId,
+            receiverId
+        );
+
+    }
+    catch (error) {
+
+        console.log(
+            "Typing error:",
+            error
+        );
+    }
+}
+
+
+/* ----------------------------------------------------------
+   Current User Typing
+   ---------------------------------------------------------- */
 
 function setupCurrentUserTyping() {
 
@@ -2681,75 +3349,52 @@ function setupCurrentUserTyping() {
 
     input.addEventListener(
         "input",
-        async function () {
+        function () {
+
+            const targetId =
+                recipientUserId ||
+                selectedUserId;
+
 
             if (
                 !currentUserId ||
-                !selectedUserId
+                !targetId
             ) {
                 return;
             }
 
 
             if (
-                !connection ||
-                connection.state !==
-                signalR.HubConnectionState.Connected
+                input.value.trim() ===
+                ""
             ) {
+
+                hideTypingIndicator(
+                    "typingIndicatorSelectedBox"
+                );
+
                 return;
             }
 
 
-            try {
-
-                await connection.invoke(
-                    "Typing",
-                    Number(currentUserId),
-                    Number(selectedUserId)
-                );
-
-            }
-            catch (error) {
-
-                console.log(
-                    "Typing error:",
-                    error
-                );
-            }
-
-
-            clearTimeout(
-                typingTimer
+            showTypingIndicator(
+                currentUserId,
+                targetId
             );
 
 
-            typingTimer =
-                setTimeout(
-                    function () {
-
-                        const typing =
-                            document.getElementById(
-                                "typing"
-                            );
-
-
-                        if (typing) {
-
-                            typing.textContent =
-                                "";
-                        }
-
-                    },
-                    2000
-                );
+            sendTypingEvent(
+                currentUserId,
+                targetId
+            );
         }
     );
 }
 
 
-// ----------------------------------------------------------
-// Selected User Typing
-// ----------------------------------------------------------
+/* ----------------------------------------------------------
+   Selected User Typing
+   ---------------------------------------------------------- */
 
 function setupSelectedUserTyping() {
 
@@ -2766,7 +3411,7 @@ function setupSelectedUserTyping() {
 
     input.addEventListener(
         "input",
-        async function () {
+        function () {
 
             if (
                 !currentUserId ||
@@ -2777,69 +3422,36 @@ function setupSelectedUserTyping() {
 
 
             if (
-                !connection ||
-                connection.state !==
-                signalR.HubConnectionState.Connected
+                input.value.trim() ===
+                ""
             ) {
+
+                hideTypingIndicator(
+                    "typingIndicatorCurrentBox"
+                );
+
                 return;
             }
 
 
-            try {
-
-                await connection.invoke(
-                    "Typing",
-                    Number(selectedUserId),
-                    Number(currentUserId)
-                );
-
-            }
-            catch (error) {
-
-                console.log(
-                    "Selected user typing error:",
-                    error
-                );
-            }
-
-
-            clearTimeout(
-                typingTimer
+            showTypingIndicator(
+                selectedUserId,
+                currentUserId
             );
 
 
-            typingTimer =
-                setTimeout(
-                    function () {
-
-                        const typing =
-                            document.getElementById(
-                                "typing"
-                            );
-
-
-                        if (typing) {
-
-                            typing.textContent =
-                                "";
-                        }
-
-                    },
-                    2000
-                );
+            sendTypingEvent(
+                selectedUserId,
+                currentUserId
+            );
         }
     );
 }
 
 
-// ==========================================================
-// ENTER KEY
-// ==========================================================
-
-
-// ----------------------------------------------------------
-// Current User Enter Key
-// ----------------------------------------------------------
+/* ==========================================================
+   ENTER KEY
+   ========================================================== */
 
 function setupCurrentUserEnterKey() {
 
@@ -2866,9 +3478,14 @@ function setupCurrentUserEnterKey() {
                 event.preventDefault();
 
 
+                const targetId =
+                    recipientUserId ||
+                    selectedUserId;
+
+
                 sendMessage(
                     currentUserId,
-                    selectedUserId,
+                    targetId,
                     "sangitaInput"
                 );
             }
@@ -2876,10 +3493,6 @@ function setupCurrentUserEnterKey() {
     );
 }
 
-
-// ----------------------------------------------------------
-// Selected User Enter Key
-// ----------------------------------------------------------
 
 function setupSelectedUserEnterKey() {
 
@@ -2917,9 +3530,9 @@ function setupSelectedUserEnterKey() {
 }
 
 
-// ==========================================================
-// REFRESH USERS
-// ==========================================================
+/* ==========================================================
+   REFRESH USERS
+   ========================================================== */
 
 function startUserRefresh() {
 
@@ -2947,9 +3560,6 @@ function startUserRefresh() {
                         : "";
 
 
-                // IMPORTANT:
-                // loadUsers() will always make
-                // ONLY selected user online.
                 await loadUsers(
                     search
                 );
@@ -2963,9 +3573,72 @@ function startUserRefresh() {
 }
 
 
-// ==========================================================
-// LOGIN
-// ==========================================================
+/* ==========================================================
+   RECIPIENT DROPDOWN SETUP
+   ========================================================== */
+
+function setupRecipientDropdown() {
+
+    const select =
+        document.getElementById(
+            "recipientUserSelect"
+        );
+
+    if (!select) {
+        return;
+    }
+
+    select.addEventListener(
+        "change",
+        async function () {
+
+            const id =
+                Number(this.value);
+
+            if (
+                !id ||
+                Number.isNaN(id)
+            ) {
+                recipientUserId =
+                    null;
+                return;
+            }
+
+            recipientUserId =
+                id;
+
+            console.log(
+                "Recipient selected from dropdown:",
+                recipientUserId
+            );
+
+            // Find user in cached list or synthesize user object
+            let targetUser =
+                cachedUsers.find(
+                    u => Number(getUserId(u)) === id
+                );
+
+            if (!targetUser) {
+                const optText =
+                    select.options[select.selectedIndex]?.text || "";
+                const cleanName =
+                    optText.replace(/\s*\(ID:\s*\d+\)$/i, "").trim() || `User ${id}`;
+                targetUser = {
+                    id: id,
+                    username: cleanName,
+                    name: cleanName
+                };
+            }
+
+            await selectUser(targetUser);
+        }
+    );
+}
+
+
+/* ==========================================================
+   LOGIN
+   ========================================================== */
 
 function goToLogin() {
 
@@ -2974,9 +3647,9 @@ function goToLogin() {
 }
 
 
-// ==========================================================
-// LOGOUT
-// ==========================================================
+/* ==========================================================
+   LOGOUT
+   ========================================================== */
 
 function logout() {
 
@@ -2985,7 +3658,6 @@ function logout() {
     );
 
 
-    // Stop SignalR
     if (connection) {
 
         connection
@@ -3000,7 +3672,6 @@ function logout() {
     }
 
 
-    // Stop user refresh
     if (userRefreshTimer) {
 
         clearInterval(
@@ -3012,7 +3683,9 @@ function logout() {
     }
 
 
-    // Remove login data
+    hideTypingIndicator();
+
+
     localStorage.removeItem(
         "token"
     );
@@ -3034,7 +3707,6 @@ function logout() {
     );
 
 
-    // Reset variables
     currentUser =
         null;
 
@@ -3047,16 +3719,171 @@ function logout() {
     selectedUserId =
         null;
 
+    cachedUsers =
+        [];
 
-    // Go to login
+
     window.location.href =
         "/login.html";
 }
 
+/* ==========================================================
+   IN-APP TOAST POPUP NOTIFICATION
+   ========================================================== */
 
-// ==========================================================
-// START APPLICATION
-// ==========================================================
+function showNotification({ title = "", message = "", type = "info", duration = 4000 } = {}) {
+    let container = document.getElementById("chatToastContainer");
+    if (!container) {
+        container = document.createElement("div");
+        container.id = "chatToastContainer";
+        container.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 999999;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            max-width: 380px;
+            width: calc(100% - 40px);
+            pointer-events: none;
+        `;
+        document.body.appendChild(container);
+    }
+
+    const toast = document.createElement("div");
+    const isSuccess = type === "success";
+    const isError = type === "error";
+    const borderColor = isSuccess ? "#10b981" : (isError ? "#ef4444" : "#4f46e5");
+    const iconColor = isSuccess ? "#059669" : (isError ? "#dc2626" : "#4338ca");
+    const iconBg = isSuccess ? "#ecfdf5" : (isError ? "#fef2f2" : "#eef2ff");
+    const iconChar = isSuccess ? "✓" : (isError ? "✕" : "💬");
+
+    toast.style.cssText = `
+        background: #ffffff;
+        color: #1f2937;
+        border-left: 5px solid ${borderColor};
+        border-radius: 10px;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15), 0 3px 6px rgba(0, 0, 0, 0.08);
+        padding: 14px 18px;
+        display: flex;
+        align-items: flex-start;
+        gap: 12px;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        font-size: 14px;
+        pointer-events: auto;
+        opacity: 0;
+        transform: translateY(-12px);
+        transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    `;
+
+    toast.innerHTML = `
+        <div style="background: ${iconBg}; color: ${iconColor}; width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; flex-shrink: 0; font-size: 15px;">
+            ${iconChar}
+        </div>
+        <div style="flex: 1; min-width: 0;">
+            ${title ? `<div style="font-weight: 600; color: #111827; margin-bottom: 2px;">${escapeHtml(title)}</div>` : ""}
+            <div style="color: #4b5563; word-break: break-word; line-height: 1.45; font-size: 13.5px;">${escapeHtml(message)}</div>
+        </div>
+        <button type="button" style="background: none; border: none; color: #9ca3af; cursor: pointer; font-size: 18px; line-height: 1; padding: 0; margin-left: 4px;" aria-label="Close">&times;</button>
+    `;
+
+    const closeBtn = toast.querySelector("button");
+    const removeToast = () => {
+        toast.style.opacity = "0";
+        toast.style.transform = "translateY(-12px)";
+        setTimeout(() => toast.remove(), 250);
+    };
+    if (closeBtn) closeBtn.onclick = removeToast;
+
+    container.appendChild(toast);
+    requestAnimationFrame(() => {
+        toast.style.opacity = "1";
+        toast.style.transform = "translateY(0)";
+    });
+
+    if (duration > 0) {
+        setTimeout(removeToast, duration);
+    }
+}
+
+/* ==========================================================
+   NOTIFICATION - MESSAGE SENT TO OFFLINE USER
+   ========================================================== */
+
+async function showSentMessageNotification(
+    senderId,
+    receiverId
+) {
+
+    senderId = Number(senderId);
+    receiverId = Number(receiverId);
+
+    if (!senderId || !receiverId) {
+        return;
+    }
+
+    const notificationText =
+        `From User ID ${senderId} to User ID ${receiverId}: one new message sent.`;
+
+    /*
+     * First show notification inside the website.
+     * This works as a fallback even if browser
+     * notification permission is not available.
+     */
+    showNotification({
+        title: "New Message Sent",
+        message: notificationText,
+        type: "success",
+        duration: 5000
+    });
+
+    /*
+     * Browser notification
+     */
+    try {
+
+        const allowed =
+            await requestNotificationPermission();
+
+        if (!allowed) {
+            return;
+        }
+
+        const notification =
+            new Notification(
+                "New Message Sent",
+                {
+                    body: notificationText,
+                    icon: "/favicon.ico",
+                    tag:
+                        `sent-message-${senderId}-${receiverId}-${Date.now()}`,
+                    renotify: true
+                }
+            );
+
+        setTimeout(
+            function () {
+
+                notification.close();
+
+            },
+            5000
+        );
+
+    }
+    catch (error) {
+
+        console.warn(
+            "Could not show sent-message browser notification:",
+            error
+        );
+    }
+}   
+
+/* ==========================================================
+   START APPLICATION
+   ========================================================== */
 
 async function startApplication() {
 
@@ -3073,7 +3900,9 @@ async function startApplication() {
     );
 
 
-    // Get logged-in user
+    addTypingStyles();
+
+
     const loggedIn =
         getCurrentUser();
 
@@ -3127,49 +3956,49 @@ async function startApplication() {
     );
 
 
-    // Display current user
+    /* Request browser notification permission */
+
+    requestNotificationPermission();
+
+
     updateCurrentUserUI();
 
 
-    // Refresh current user
     await refreshCurrentUserDetails();
 
 
-    // Setup forms
     setupCurrentUserForm();
+
     setupSelectedUserForm();
 
 
-    // Setup image inputs
     setupCurrentUserImage();
+
     setupSelectedUserImage();
 
 
-    // Setup search
     setupSearch();
 
 
-    // Setup typing
+    setupRecipientDropdown();
+
+
     setupCurrentUserTyping();
+
     setupSelectedUserTyping();
 
 
-    // Setup Enter key
     setupCurrentUserEnterKey();
+
     setupSelectedUserEnterKey();
 
 
-    // Start SignalR
     await startConnection();
 
 
-    // Load users
-    // At this point no user is selected,
-    // therefore EVERYONE will be OFFLINE.
     await loadUsers();
 
 
-    // Refresh users every 5 seconds
     startUserRefresh();
 
 
@@ -3187,9 +4016,9 @@ async function startApplication() {
 }
 
 
-// ==========================================================
-// PAGE LOAD
-// ==========================================================
+/* ==========================================================
+   PAGE LOAD
+   ========================================================== */
 
 if (
     document.readyState ===
@@ -3205,4 +4034,118 @@ if (
 else {
 
     startApplication();
+}
+
+
+function populateRecipientUsers(users) {
+
+    const select =
+        document.getElementById(
+            "recipientUserSelect"
+        );
+
+
+    if (!select) {
+        return;
+    }
+
+
+    const previousValue =
+        select.value;
+
+
+    select.innerHTML = `
+        <option value="">
+            Select recipient
+        </option>
+    `;
+
+
+    users.forEach(
+        user => {
+
+            const id =
+                getUserId(user);
+
+            const name =
+                getUsername(user);
+
+
+            if (!id) {
+                return;
+            }
+
+
+            // Don't allow current user to select themselves
+
+            if (
+                String(id) ===
+                String(currentUserId)
+            ) {
+                return;
+            }
+
+
+            const option =
+                document.createElement(
+                    "option"
+                );
+
+
+            option.value =
+                id;
+
+
+            option.textContent =
+                `${name} (ID: ${id})`;
+
+
+            select.appendChild(
+                option
+            );
+        }
+    );
+
+
+    // Keep previously selected recipient
+
+    if (
+        previousValue &&
+        [...select.options].some(
+            option =>
+                option.value ===
+                previousValue
+        )
+    ) {
+
+        select.value =
+            previousValue;
+    }
+
+
+    // If a chat user is selected, use them as default recipient
+
+    if (
+        !select.value &&
+        selectedUserId
+    ) {
+
+        const exists =
+            [...select.options].some(
+                option =>
+                    String(option.value) ===
+                    String(selectedUserId)
+            );
+
+
+        if (exists) {
+
+            select.value =
+                selectedUserId;
+        }
+    }
+
+
+    recipientUserId =
+        select.value || null;
 }

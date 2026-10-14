@@ -1,5 +1,4 @@
 using Microsoft.AspNetCore.SignalR;
-using Microsoft.EntityFrameworkCore;
 using RealTimeChat.Data;
 using RealTimeChat.Models;
 
@@ -8,21 +7,13 @@ namespace RealTimeChat.Hubs
     public class ChatHub : Hub
     {
         private readonly AppDbContext _context;
-        private readonly ILogger<ChatHub> _logger;
 
-        public ChatHub(
-            AppDbContext context,
-            ILogger<ChatHub> logger)
+        public ChatHub(AppDbContext context)
         {
             _context = context;
-            _logger = logger;
         }
 
-
-        // =====================================================
-        // SEND TEXT MESSAGE
-        // =====================================================
-
+        // Send text message
         public async Task SendMessage(
             int senderId,
             int receiverId,
@@ -30,33 +21,8 @@ namespace RealTimeChat.Hubs
         {
             if (string.IsNullOrWhiteSpace(content))
             {
-                throw new HubException(
-                    "Message cannot be empty."
-                );
+                return;
             }
-
-            bool senderExists =
-                await _context.Users
-                    .AnyAsync(u => u.Id == senderId);
-
-            if (!senderExists)
-            {
-                throw new HubException(
-                    "Sender does not exist."
-                );
-            }
-
-            bool receiverExists =
-                await _context.Users
-                    .AnyAsync(u => u.Id == receiverId);
-
-            if (!receiverExists)
-            {
-                throw new HubException(
-                    "Receiver does not exist."
-                );
-            }
-
 
             var message = new Message
             {
@@ -64,204 +30,97 @@ namespace RealTimeChat.Hubs
                 ReceiverId = receiverId,
                 Content = content,
                 MessageType = "Text",
-                MediaUrl = null,
                 Status = "Sent",
                 CreatedAt = DateTime.UtcNow
             };
 
-
             _context.Messages.Add(message);
-
             await _context.SaveChangesAsync();
 
+            // Send to receiver's group (connections registered for receiverId)
+            await Clients.Group(receiverId.ToString())
+                .SendAsync("ReceiveMessage", message);
 
-            _logger.LogInformation(
-                "TEXT MESSAGE SAVED: ID={Id}, Sender={Sender}, Receiver={Receiver}",
-                message.Id,
-                message.SenderId,
-                message.ReceiverId
-            );
+            // Also send via SignalR User identifier if configured
+            await Clients.User(receiverId.ToString())
+                .SendAsync("ReceiveMessage", message);
 
-
-            await Clients.All.SendAsync(
-                "ReceiveMessage",
-                new
-                {
-                    id = message.Id,
-                    senderId = message.SenderId,
-                    receiverId = message.ReceiverId,
-                    content = message.Content,
-                    messageType = message.MessageType,
-                    mediaUrl = message.MediaUrl,
-                    status = message.Status,
-                    createdAt = message.CreatedAt
-                }
-            );
+            // Send back to the caller (sender)
+            await Clients.Caller
+                .SendAsync("ReceiveMessage", message);
         }
 
-
-        // =====================================================
-        // SEND IMAGE MESSAGE
-        // =====================================================
-
+        // Send image message
         public async Task SendImageMessage(
             int senderId,
             int receiverId,
             string mediaUrl)
         {
-            // -------------------------------------------------
-            // LOG WHAT IS RECEIVED FROM APP.JS
-            // -------------------------------------------------
-
-            _logger.LogInformation(
-                "IMAGE REQUEST RECEIVED: Sender={Sender}, Receiver={Receiver}, MediaUrl={MediaUrl}",
-                senderId,
-                receiverId,
-                mediaUrl
-            );
-
-
-            // -------------------------------------------------
-            // Validate URL
-            // -------------------------------------------------
-
             if (string.IsNullOrWhiteSpace(mediaUrl))
             {
-                _logger.LogError(
-                    "IMAGE URL IS EMPTY!"
-                );
-
-                throw new HubException(
-                    "Image URL is empty."
-                );
+                return;
             }
-
-
-            // -------------------------------------------------
-            // Validate sender
-            // -------------------------------------------------
-
-            bool senderExists =
-                await _context.Users
-                    .AnyAsync(
-                        u => u.Id == senderId
-                    );
-
-
-            if (!senderExists)
-            {
-                throw new HubException(
-                    "Sender does not exist."
-                );
-            }
-
-
-            // -------------------------------------------------
-            // Validate receiver
-            // -------------------------------------------------
-
-            bool receiverExists =
-                await _context.Users
-                    .AnyAsync(
-                        u => u.Id == receiverId
-                    );
-
-
-            if (!receiverExists)
-            {
-                throw new HubException(
-                    "Receiver does not exist."
-                );
-            }
-
-
-            // =================================================
-            // CREATE MESSAGE
-            // =================================================
 
             var message = new Message
             {
                 SenderId = senderId,
-
                 ReceiverId = receiverId,
-
-                Content = null,
-
-                MessageType = "Image",
-
                 MediaUrl = mediaUrl,
-
+                MessageType = "Image",
                 Status = "Sent",
-
                 CreatedAt = DateTime.UtcNow
             };
 
-
-            // =================================================
-            // ADD TO EF CORE
-            // =================================================
-
             _context.Messages.Add(message);
-
-
-            // =================================================
-            // SAVE TO MYSQL
-            // =================================================
-
             await _context.SaveChangesAsync();
 
+            // Send to receiver's group
+            await Clients.Group(receiverId.ToString())
+                .SendAsync("ReceiveMessage", message);
 
-            // =================================================
-            // VERIFY DATABASE OBJECT
-            // =================================================
+            // Send via SignalR User
+            await Clients.User(receiverId.ToString())
+                .SendAsync("ReceiveMessage", message);
 
-            _logger.LogInformation(
-                "IMAGE MESSAGE SAVED SUCCESSFULLY: ID={Id}, MediaUrl={MediaUrl}",
-                message.Id,
-                message.MediaUrl
-            );
-
-
-            // =================================================
-            // SEND TO FRONTEND
-            // =================================================
-
-            await Clients.All.SendAsync(
-                "ReceiveMessage",
-                new
-                {
-                    id = message.Id,
-
-                    senderId = message.SenderId,
-
-                    receiverId = message.ReceiverId,
-
-                    content = message.Content,
-
-                    messageType = message.MessageType,
-
-                    mediaUrl = message.MediaUrl,
-
-                    status = message.Status,
-
-                    createdAt = message.CreatedAt
-                }
-            );
+            // Send back to caller
+            await Clients.Caller
+                .SendAsync("ReceiveMessage", message);
         }
 
-
-        // =====================================================
-        // TYPING
-        // =====================================================
-
+        // Typing indicator
         public async Task Typing(
             int senderId,
             int receiverId)
         {
-            await Clients.All.SendAsync(
-                "UserTyping",
-                senderId
+            await Clients.Group(receiverId.ToString())
+                .SendAsync("UserTyping", senderId, receiverId);
+
+            await Clients.User(receiverId.ToString())
+                .SendAsync("UserTyping", senderId, receiverId);
+        }
+
+        // Register current user connection to their personal group
+        public async Task RegisterUser(int userId)
+        {
+            await Groups.AddToGroupAsync(
+                Context.ConnectionId,
+                userId.ToString()
             );
+        }
+
+        // Remove user connection
+        public async Task Logout(int userId)
+        {
+            await Groups.RemoveFromGroupAsync(
+                Context.ConnectionId,
+                userId.ToString()
+            );
+        }
+
+        public override async Task OnDisconnectedAsync(
+            Exception? exception)
+        {
+            await base.OnDisconnectedAsync(exception);
         }
     }
 }

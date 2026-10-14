@@ -12,7 +12,7 @@
 
     <!-- CSS -->
     <link rel="stylesheet"
-          href="/css/Style.css?v=1002">
+          href="/css/Style.css?v=1003">
 
 </head>
 
@@ -75,15 +75,12 @@
         <div class="auth-buttons">
 
             <button
-                type="button"
                 id="loginButton"
                 class="login-button"
-                onclick="goToLogin()">
+                type="button">
 
                 🔐 Login
-
             </button>
-
 
             <button
                 type="button"
@@ -208,50 +205,62 @@
 
                 </div>
 
+
+                <!-- =================================================
+                     TYPING INDICATOR - shown here when the
+                     SELECTED USER is typing to the current user
+                ================================================== -->
+
+                <div id="typingIndicatorCurrentBox"
+                     class="typing-indicator"
+                     aria-live="polite">
+                </div>
+
+
                 <!-- =================================================
                      CURRENT USER MESSAGE FORM
                 ================================================== -->
 
                 <form id="sangitaForm"
-                      class="message-form">
+      class="message-form">
 
+    <!-- SEND TO ANY USER -->
+    <select id="recipientUserSelect"
+            class="recipient-select">
 
-                    <!-- Text -->
+        <option value="">
+            Select recipient
+        </option>
 
-                    <input
-                        type="text"
-                        id="sangitaInput"
-                        placeholder="Type a message..."
-                        autocomplete="off">
+    </select>
 
+    <!-- MESSAGE -->
+    <input
+        type="text"
+        id="sangitaInput"
+        placeholder="Type a message..."
+        autocomplete="off">
 
-                    <!-- Image -->
+    <!-- IMAGE -->
+    <label class="image-upload-button"
+           for="sangitaImage">
 
-                    <label class="image-upload-button"
-                           for="sangitaImage">
+        📷 Image
 
-                        📷 Image
+    </label>
 
-                    </label>
+    <input
+        type="file"
+        id="sangitaImage"
+        accept="image/jpeg,image/png,image/webp"
+        hidden>
 
+    <!-- SEND -->
+    <button type="submit">
+        Send
+    </button>
 
-                    <input
-                        type="file"
-                        id="sangitaImage"
-                        accept="image/jpeg,image/png,image/webp"
-                        hidden>
-
-
-                    <!-- Send -->
-
-                    <button
-                        type="submit">
-
-                        Send
-
-                    </button>
-
-                </form>
+</form>
 
 
                 <!-- Selected image name -->
@@ -312,6 +321,16 @@
                 </div>
 
 
+                <!-- =================================================
+                     TYPING INDICATOR - shown here when the
+                     CURRENT USER is typing to the selected user
+                ================================================== -->
+
+                <div id="typingIndicatorSelectedBox"
+                     class="typing-indicator"
+                     aria-live="polite">
+                </div>
+
 
                 <!-- =================================================
                      SELECTED USER MESSAGE FORM
@@ -370,18 +389,6 @@
 
         </div>
 
-
-
-        <!-- =================================================
-             TYPING INDICATOR
-        ================================================== -->
-
-        <div id="typing"
-             class="typing">
-
-        </div>
-
-
     </main>
 
 </div>
@@ -402,233 +409,202 @@
 
 <script>
 
-document.addEventListener(
-    "DOMContentLoaded",
-    function () {
+document.addEventListener("DOMContentLoaded", function () {
 
+    // =====================================================
+    // LOGIN BUTTON
+    // =====================================================
 
-        // =================================================
-        // CURRENT USER IMAGE PREVIEW
-        // =================================================
+    const loginButton =
+        document.getElementById("loginButton");
 
-        const sangitaImage =
-            document.getElementById(
-                "sangitaImage"
-            );
+    if (loginButton) {
 
-        const sangitaPreview =
-            document.getElementById(
-                "sangitaImagePreview"
-            );
+        loginButton.addEventListener("click", function () {
 
+            window.location.href = "/login.html";
 
-        if (sangitaImage) {
-
-            sangitaImage.addEventListener(
-                "change",
-                function () {
-
-                    if (
-                        !sangitaPreview ||
-                        !this.files ||
-                        this.files.length === 0
-                    ) {
-
-                        if (sangitaPreview) {
-
-                            sangitaPreview.innerHTML =
-                                "";
-
-                        }
-
-                        return;
-                    }
-
-
-                    const file =
-                        this.files[0];
-
-
-                    // Check file size
-
-                    if (
-                        file.size >
-                        5 * 1024 * 1024
-                    ) {
-
-                        alert(
-                            "Image size must be less than 5 MB."
-                        );
-
-                        this.value = "";
-
-                        sangitaPreview.innerHTML =
-                            "";
-
-                        return;
-                    }
-
-
-                    // Check image type
-
-                    const allowedTypes = [
-                        "image/jpeg",
-                        "image/png",
-                        "image/webp"
-                    ];
-
-
-                    if (
-                        !allowedTypes.includes(
-                            file.type
-                        )
-                    ) {
-
-                        alert(
-                            "Only JPG, PNG and WEBP images are allowed."
-                        );
-
-                        this.value = "";
-
-                        sangitaPreview.innerHTML =
-                            "";
-
-                        return;
-                    }
-
-
-                    // Show filename
-
-                    sangitaPreview.innerHTML =
-                        `
-                        <div class="selected-image-info">
-
-                            📷
-                            <span>
-                                ${escapeHtml(file.name)}
-                            </span>
-
-                        </div>
-                        `;
-
-                }
-            );
-
-        }
-
-
-
-        // =================================================
-        // SELECTED USER IMAGE PREVIEW
-        // =================================================
-
-        const selectedImage =
-            document.getElementById(
-                "selectedUserImage"
-            );
-
-
-        const selectedPreview =
-            document.getElementById(
-                "selectedImagePreview"
-            );
-
-
-        if (selectedImage) {
-
-            selectedImage.addEventListener(
-                "change",
-                function () {
-
-                    if (
-                        !selectedPreview ||
-                        !this.files ||
-                        this.files.length === 0
-                    ) {
-
-                        if (selectedPreview) {
-
-                            selectedPreview.innerHTML =
-                                "";
-
-                        }
-
-                        return;
-                    }
-
-
-                    const file =
-                        this.files[0];
-
-
-                    // Check size
-
-                    if (
-                        file.size >
-                        5 * 1024 * 1024
-                    ) {
-
-                        alert(
-                            "Image size must be less than 5 MB."
-                        );
-
-                        this.value = "";
-
-                        selectedPreview.innerHTML =
-                            "";
-
-                        return;
-                    }
-
-
-                    // Check type
-
-                    const allowedTypes = [
-                        "image/jpeg",
-                        "image/png",
-                        "image/webp"
-                    ];
-
-
-                    if (
-                        !allowedTypes.includes(
-                            file.type
-                        )
-                    ) {
-
-                        alert(
-                            "Only JPG, PNG and WEBP images are allowed."
-                        );
-
-                        this.value = "";
-
-                        selectedPreview.innerHTML =
-                            "";
-
-                        return;
-                    }
-
-
-                    selectedPreview.innerHTML =
-                        `
-                        <div class="selected-image-info">
-
-                            📷
-                            <span>
-                                ${escapeHtml(file.name)}
-                            </span>
-
-                        </div>
-                        `;
-
-                }
-            );
-
-        }
+        });
 
     }
-);
 
+
+    // =====================================================
+    // CURRENT USER IMAGE PREVIEW
+    // =====================================================
+
+    const sangitaImage =
+        document.getElementById("sangitaImage");
+
+    const sangitaPreview =
+        document.getElementById("sangitaImagePreview");
+
+
+    if (sangitaImage) {
+
+        sangitaImage.addEventListener(
+            "change",
+            function () {
+
+                if (
+                    !sangitaPreview ||
+                    !this.files ||
+                    this.files.length === 0
+                ) {
+
+                    if (sangitaPreview) {
+                        sangitaPreview.innerHTML = "";
+                    }
+
+                    return;
+                }
+
+
+                const file = this.files[0];
+
+
+                // Check file size
+                if (file.size > 5 * 1024 * 1024) {
+
+                    alert(
+                        "Image size must be less than 5 MB."
+                    );
+
+                    this.value = "";
+                    sangitaPreview.innerHTML = "";
+
+                    return;
+                }
+
+
+                // Check image type
+                const allowedTypes = [
+                    "image/jpeg",
+                    "image/png",
+                    "image/webp"
+                ];
+
+
+                if (!allowedTypes.includes(file.type)) {
+
+                    alert(
+                        "Only JPG, PNG and WEBP images are allowed."
+                    );
+
+                    this.value = "";
+                    sangitaPreview.innerHTML = "";
+
+                    return;
+                }
+
+
+                // Show filename
+                sangitaPreview.innerHTML = `
+                    <div class="selected-image-info">
+
+                        📷
+
+                        <span>
+                            ${escapeHtml(file.name)}
+                        </span>
+
+                    </div>
+                `;
+
+            }
+        );
+
+    }
+
+
+    // =====================================================
+    // SELECTED USER IMAGE PREVIEW
+    // =====================================================
+
+    const selectedImage =
+        document.getElementById("selectedUserImage");
+
+    const selectedPreview =
+        document.getElementById("selectedImagePreview");
+
+
+    if (selectedImage) {
+
+        selectedImage.addEventListener(
+            "change",
+            function () {
+
+                if (
+                    !selectedPreview ||
+                    !this.files ||
+                    this.files.length === 0
+                ) {
+
+                    if (selectedPreview) {
+                        selectedPreview.innerHTML = "";
+                    }
+
+                    return;
+                }
+
+
+                const file = this.files[0];
+
+
+                // Check file size
+                if (file.size > 5 * 1024 * 1024) {
+
+                    alert(
+                        "Image size must be less than 5 MB."
+                    );
+
+                    this.value = "";
+                    selectedPreview.innerHTML = "";
+
+                    return;
+                }
+
+
+                // Check image type
+                const allowedTypes = [
+                    "image/jpeg",
+                    "image/png",
+                    "image/webp"
+                ];
+
+
+                if (!allowedTypes.includes(file.type)) {
+
+                    alert(
+                        "Only JPG, PNG and WEBP images are allowed."
+                    );
+
+                    this.value = "";
+                    selectedPreview.innerHTML = "";
+
+                    return;
+                }
+
+
+                // Show filename
+                selectedPreview.innerHTML = `
+                    <div class="selected-image-info">
+
+                        📷
+
+                        <span>
+                            ${escapeHtml(file.name)}
+                        </span>
+
+                    </div>
+                `;
+
+            }
+        );
+
+    }
+
+});
 
 
 // =========================================================
@@ -641,26 +617,20 @@ function escapeHtml(value) {
         return "";
     }
 
-
     return String(value)
         .replace(/&/g, "&amp;")
         .replace(/</g, "&lt;")
         .replace(/>/g, "&gt;")
         .replace(/"/g, "&quot;")
         .replace(/'/g, "&#039;");
+
 }
 
 </script>
-
-
-
 <!-- =========================================================
      APPLICATION JAVASCRIPT
 ========================================================== -->
 
-<script src="/js/app.js?v=1002"></script>
-
-
+<script src="/Js/app.js?v=1002"></script>
 </body>
-
 </html>
